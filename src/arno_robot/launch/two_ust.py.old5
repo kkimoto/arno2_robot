@@ -1,0 +1,107 @@
+import os
+from launch import LaunchDescription
+from launch.actions import TimerAction, EmitEvent
+from launch_ros.actions import LifecycleNode, Node, ComposableNodeContainer
+from launch_ros.descriptions import ComposableNode
+from launch_ros.events.lifecycle import ChangeState
+from lifecycle_msgs.msg import Transition
+from ament_index_python.packages import get_package_share_directory
+
+from launch.events import matches_action
+from launch_ros.actions import LifecycleNode
+from launch.actions import TimerAction, EmitEvent
+
+def generate_launch_description():
+    # 各パッケージの config ディレクトリ
+    urg_share = get_package_share_directory('urg_node2')
+    merger_share = get_package_share_directory('laser_scan_merger')
+
+    # パラメータファイル
+    param_urg1 = os.path.join(urg_share, 'config', 'params_ether.yaml')
+    param_urg2 = os.path.join(urg_share, 'config', 'params_ether_2nd.yaml')
+    param_merger = os.path.join(merger_share, 'config', 'kimoto_ust', 'param.yaml')
+
+    # urg_node2 (LifecycleNode)
+    urg1 = LifecycleNode(
+        package='urg_node2',
+        executable='urg_node2_node',
+        name='urg_node2_1st',
+        namespace='',
+        output='screen',
+        parameters=[param_urg1],
+        remappings=[('/scan', '/scan_1st')]
+    )
+    urg2 = LifecycleNode(
+        package='urg_node2',
+        executable='urg_node2_node',
+        name='urg_node2_2nd',
+        namespace='',
+        output='screen',
+        parameters=[param_urg2],
+        remappings=[('/scan', '/scan_2nd')]
+    )
+
+    # static_transform_publisher
+    tf1 = Node(
+        package='tf2_ros',
+        executable='static_transform_publisher',
+        name='static_tf_laser_1',
+        arguments=['0', '0', '0', '0', '0', '0', 'base_link', 'laser_frame_1'],
+        output='screen'
+    )
+    tf2 = Node(
+        package='tf2_ros',
+        executable='static_transform_publisher',
+        name='static_tf_laser_2',
+        arguments=['0', '0.25', '0', '0', '0', '3.1415926535', 'base_link', 'laser_frame_2'],
+        output='screen'
+    )
+
+    # laser_scan_merger
+    merger = ComposableNodeContainer(
+        name='laser_scan_merger_container',
+        namespace='',
+        package='rclcpp_components',
+        executable='component_container',
+        output='screen',
+        composable_node_descriptions=[
+            ComposableNode(
+                package='laser_scan_merger',
+                plugin='util::LaserScanMerger',
+                name='laser_scan_merger_node',
+                parameters=[param_merger],
+            )
+        ]
+    )
+
+    # urg_node2 を起動後に activate する TimerAction（3秒後）
+    activate = TimerAction(
+        period=3.0,
+        actions=[
+            EmitEvent(event=ChangeState(
+                lifecycle_node_matcher=matches_action(lambda action: action.name == 'urg_node2_1st'),
+                transition_id=Transition.TRANSITION_CONFIGURE
+            )),
+            EmitEvent(event=ChangeState(
+                lifecycle_node_matcher=matches_action(lambda action: action.name == 'urg_node2_1st'),
+                transition_id=Transition.TRANSITION_ACTIVATE
+            )),
+            EmitEvent(event=ChangeState(
+                lifecycle_node_matcher=matches_action(lambda action: action.name == 'urg_node2_2nd'),
+                transition_id=Transition.TRANSITION_CONFIGURE
+            )),
+            EmitEvent(event=ChangeState(
+                lifecycle_node_matcher=matches_action(lambda action: action.name == 'urg_node2_2nd'),
+                transition_id=Transition.TRANSITION_ACTIVATE
+            )),
+        ]
+    )
+
+    return LaunchDescription([
+        urg1,
+        urg2,
+        tf1,
+        tf2,
+        merger,
+        activate,
+    ])

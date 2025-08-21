@@ -1,0 +1,25 @@
+sudo reosdep init  # only once for the system.
+
+rosdep update
+
+# to pretend Mit Linux to be Ubuntu 22.04 jammy jerryfish --os option is necessary.
+rosdep install -i --from-path src/urg_node2 --os=ubuntu:jammy -y
+
+
+
+$ bash com_start_urgnode2.sh 
+---
+source ./install/setup.bash
+ros2 launch urg_node2 urg_node2.launch.py
+---
+
+Launched with
+
+  src/urg_node2/launch/urg_node2.launch.py 
+
+Scan topic name is /scan declared in launch file.
+This launch file referes
+
+  src/urg_node2/config/params_ether.yaml 
+
+for sensor command parameters and networ parameters.
